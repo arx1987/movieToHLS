@@ -1,4 +1,5 @@
 using MovieToHLS.Services;
+using MonoTorrent.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,7 @@ var services = builder.Services;
 services.AddControllers();
 //services.AddSingleton<ITorrentService, TorrentService>();
 services.AddSingleton<TorrentService>();
+services.AddSingleton<ClientEngine>();
 services.AddEndpointsApiExplorer();
 services.AddSwaggerGen();
 
