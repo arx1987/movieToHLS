@@ -29,13 +29,14 @@ public class MovieToHLSController : ControllerBase
         response.ContentType = "text/html; charset=utf-8";
         IFormFileCollection files = request.Form.Files;
         //путь к папке, где будут храниться файлы
-        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+        DirectoryInfo uploadDir = new(Path.Combine(Directory.GetCurrentDirectory(), "uploads"));
         // создаем папку для хранения файлов
-        Directory.CreateDirectory(uploadDir);
+        Directory.CreateDirectory(uploadDir.FullName);
 
-        foreach (var file in files)
+
+        foreach (var file in files)//file.filename  = "big-buck-bunny.torrent";
         {
-            string fullPath = Path.Combine(uploadDir, file.FileName);
+            string fullPath = Path.Combine(uploadDir.FullName, file.FileName);
             // сохраняем файл в папку uploads
             using (var fileStream = new FileStream(fullPath, FileMode.Create))
             {
@@ -44,10 +45,10 @@ public class MovieToHLSController : ControllerBase
         }
         await response.WriteAsync("Файлы успешно загружены");
 
-        var downloadedFiles = Directory.GetFiles(uploadDir)
-            .Select(x => (IsValid: Torrent.TryLoad(x, out var torrent), torrent))
+        var downloadedFiles = uploadDir.GetFiles()
+            .Select(x => (IsValid: Torrent.TryLoad(x.FullName, out var torrent), torrent, fileInfo: x))//item3 - FileInfo
             .Where(x => x.IsValid)
-            .Select(x => x.torrent);
+            .Select(x => x);
 
         var baseDir = new DirectoryInfo(AppContext.BaseDirectory);
         var outputDirectory = baseDir.CreateSubdirectory("Output");
@@ -57,17 +58,25 @@ public class MovieToHLSController : ControllerBase
             /*var engine = new ClientEngine();
             var loader = new TorrentService(engine);*/
             var allowedExt = new[] { ".mp4", ".avi", ".mkv", ".mov" };
-            foreach (var torrent in downloadedFiles)
+            foreach (var (IsValid, torrent, fileInfo) in downloadedFiles)
             {
-                _logger.LogInformation("Found torrent {Name}, downloading files...", torrent.Name);
+                _logger.LogInformation("Found torrent {Name}, downloading files...", torrent.Name) ;
                 var folderWithFiles = _service.DownloadFile(torrent, outputDirectory);
                 _logger.LogInformation("Download completed, converting to hls...");
+               
+                var oldTorrentsDir = Directory.CreateDirectory(Path.Combine(uploadDir.FullName, "OldTorrentFilesDownloaded"));
+                string whereFileWillBe = Path.Combine(oldTorrentsDir.FullName, fileInfo.Name);
+                FileInfo torrentFileToMove = new(Path.Combine(uploadDir.FullName, fileInfo.Name));
+                if(System.IO.File.Exists(torrentFileToMove.FullName)&&oldTorrentsDir.Exists)
+                {
+                    torrentFileToMove.MoveTo(whereFileWillBe);
+                }
 
                 var foldWIthFilesArray = folderWithFiles.EnumerateFiles("", SearchOption.AllDirectories)
                          .Where(x => allowedExt.Contains(x.Extension)).ToArray();
                 var composite = foldWIthFilesArray.Length > 1;
 
-                DirectoryInfo convertedDir = new DirectoryInfo(Path.Combine(outputDirectory.FullName, torrent.Name, torrent.Name + "Converted"));
+                DirectoryInfo convertedDir = new(Path.Combine(outputDirectory.FullName, torrent.Name, torrent.Name + "Converted"));
                 if (!convertedDir.Exists) convertedDir.Create();
                 foreach (var videoFile in foldWIthFilesArray)
                 {
