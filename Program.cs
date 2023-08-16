@@ -1,23 +1,36 @@
+using Microsoft.Extensions.Options;
 using MovieToHLS.Services;
 using MonoTorrent.Client;
+using MovieToHLS;
 using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var services = builder.Services;
+var config = builder.Configuration;
 
-services.AddControllers();
+services.AddControllers().AddNewtonsoftJson();
 //services.AddSingleton<ITorrentService, TorrentService>();
-services.AddSingleton<TelegramBotClient>(new TelegramBotClient("6464331195:AAEn8HfRPz7kl25Rnab-ZBK_0JnKWu9Ma28"));
-services.AddTransient<TelegramService>();
-services.AddTransient<TorrentService>();
-services.AddSingleton<ClientEngine>();
-services.AddCors();
-services.AddEndpointsApiExplorer();
-services.AddSwaggerGen();
+services
+    .AddSingleton<TelegramBotClient>(new TelegramBotClient(config.GetSection("TelegramOptions:Token").Get<string>()))
+    .AddTransient<TelegramService>()
+    .AddTransient<TorrentService>()
+    .AddSingleton<ClientEngine>()
+    .AddCors()
+    .AddEndpointsApiExplorer()
+    .AddSwaggerGen();
+
+
+services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName));
 
 var app = builder.Build();
+
+var tg = app.Services.GetRequiredService<TelegramBotClient>();
+var tgOptions = app.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
+
+await tg.SetWebhookAsync($"{tgOptions.HostUrl}/tg/webhook");
+
 
 app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
 

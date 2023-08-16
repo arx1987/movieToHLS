@@ -8,7 +8,7 @@ namespace MovieToHLS.Services;
 
 }
 */
-public class TorrentService //: ITorrentService
+public class TorrentService
 {
     //private SemaphoreSlim _isDownloaded;
     private readonly ClientEngine _engine;
@@ -36,5 +36,4 @@ public class TorrentService //: ITorrentService
         }
 
     }
-
 }

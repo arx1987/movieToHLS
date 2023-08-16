@@ -5,6 +5,10 @@ using MonoTorrent.Client;
 using MovieToHLS.Services;
 using System.Net;
 using System.Web;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace MovieToHLS.Controllers;
@@ -16,19 +20,66 @@ public class MovieToHLSController : ControllerBase
     private readonly ILogger<MovieToHLSController> _logger;
     private readonly TorrentService _service;
     private readonly TelegramService _telegram;
+    private readonly TelegramBotClient _tg;
+    private readonly TelegramOptions _tgOptions;
 
-    public MovieToHLSController(ILogger<MovieToHLSController> logger, TorrentService service, TelegramService telegram)
+    public MovieToHLSController(
+        ILogger<MovieToHLSController> logger,
+        TorrentService service,
+        TelegramService telegram,
+        TelegramBotClient tg,
+        IOptions<TelegramOptions> tgOptions)
     {
         _logger = logger;
         _service = service;
         //service.OnDownload += Service_OnDownload;
         _telegram = telegram;
+        _tg = tg;
+        _tgOptions = tgOptions.Value;
     }
 
-    /*  private void Service_OnDownload(DateTime arg1, DirectoryInfo arg2)
-      {
-          throw new NotImplementedException();
-      }*/
+    [HttpGet("/tg/webhook")]
+    public void WebhookGet() {}
+
+
+    [HttpPost("/tg/webhook")]
+    public async Task Webhook([FromBody]Update update)
+    {
+        var chatId = update.Message.Chat.Id;
+        if (update.Message?.Text is "/start" or "/help")
+        {
+            await _tg.SendTextMessageAsync(update.Message.Chat.Id, "Я умею конвертировать видосы, скинь мне торрент или напиши /help");
+            return;
+        }
+
+        if (update.Message?.Document is not null)
+        {
+            var fileId = update.Message.Document.FileId;
+            await using var stream = System.IO.File.Create(Path.Combine(AppContext.BaseDirectory, "uploads", $"{Guid.NewGuid():n}.torrent"));
+            await _tg.GetInfoAndDownloadFileAsync(fileId, stream);
+
+            stream.Position = 0;
+            var torrent = await Torrent.LoadAsync(stream);
+
+            // await _service.DownloadFile(torrent, null, async folderWithFiles =>
+            // {
+            //     await _tg.SendTextMessageAsync(chatId, "Вот ваше кино http://localhost:5000/api/MovieToHLS/download/filename");
+            // });
+
+            await _tg.SendTextMessageAsync(chatId, "Окей, твой торрент качается, скоро пришлю ссылку");
+            await Task.Delay(1000);
+            await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино {_tgOptions.HostUrl}/api/MovieToHLS/download/filename");
+            return;
+        }
+
+        await _tg.SendTextMessageAsync(chatId, "Я вас не понял, попробуйте /help");
+
+        // ...
+        // ...
+
+        await _tg.SendTextMessageAsync(update.Message.Chat.Id, "Ваша ссылка на просмотр");
+    }
+
 
     [HttpPost("Upload")]
 
@@ -128,7 +179,7 @@ public class MovieToHLSController : ControllerBase
     {
         //if (password != "123") return Results.Unauthorized();
 
-        DirectoryInfo uploadDir = new(Path.Combine(AppContext.BaseDirectory, "Output"));
+        DirectoryInfo uploadDir = new(Path.Combine(AppContext.BaseDirectory, "output"));
         if (fileName.EndsWith(".ts"))
         {
             var tsFileToGive = uploadDir.GetFiles(fileName, SearchOption.AllDirectories);
