@@ -73,14 +73,10 @@ public class MovieToHLSController : ControllerBase
         }
 
         await _tg.SendTextMessageAsync(chatId, "Я вас не понял, попробуйте /help");
-
-        // ...
-        // ...
     }
 
 
-    [HttpPost("Upload")]
-
+    [HttpPost("upload")]
     public async Task<string> Upload()
     {
         /*_service.OnDownload += (a, b) => { };
@@ -190,7 +186,6 @@ public class MovieToHLSController : ControllerBase
         //await HttpContext.Response.SendFileAsync(m3u8FileToGive[0].FullName);
 
         return Results.File(m3u8FileToGive[0].FullName);
-
     }
 
     [HttpGet]
