@@ -19,6 +19,7 @@ services
     .AddSingleton<ClientEngine>()
     .AddCors()
     .AddEndpointsApiExplorer()
+    .AddHostedService<TgWebhookRegistrator>()
     .AddSwaggerGen();
 
 
@@ -26,10 +27,6 @@ services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName
 
 var app = builder.Build();
 
-var tg = app.Services.GetRequiredService<TelegramBotClient>();
-var tgOptions = app.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
-
-await tg.SetWebhookAsync($"{tgOptions.HostUrl}/tg/webhook");
 
 
 app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());

@@ -68,7 +68,7 @@ public class MovieToHLSController : ControllerBase
 
             await _tg.SendTextMessageAsync(chatId, "Окей, твой торрент качается, скоро пришлю ссылку");
             await Task.Delay(1000);
-            await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино {_tgOptions.HostUrl}/api/MovieToHLS/download/filename");
+            await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/download/filename");
             return;
         }
 
@@ -76,8 +76,6 @@ public class MovieToHLSController : ControllerBase
 
         // ...
         // ...
-
-        await _tg.SendTextMessageAsync(update.Message.Chat.Id, "Ваша ссылка на просмотр");
     }
 
 
