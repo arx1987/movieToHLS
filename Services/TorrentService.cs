@@ -10,32 +10,31 @@ namespace MovieToHLS.Services;
 */
 public class TorrentService //: ITorrentService
 {
-    //private Semaphore _isDownloaded;
+    //private SemaphoreSlim _isDownloaded;
     private readonly ClientEngine _engine;
-
+    //public event Action<DateTime, DirectoryInfo> OnDownload;
     public TorrentService(ClientEngine engine)
     {
         _engine = engine;
-        //_isDownloaded = new Semaphore(0, 1);
+        //_isDownloaded = new(0, 1);
     }
 
-    public DirectoryInfo DownloadFile(Torrent torrent, DirectoryInfo downloadDir)
+    public async Task DownloadFile(Torrent torrent, DirectoryInfo downloadDir, Func<DirectoryInfo, Task> onDownloaded)
     {
-        var manager = _engine.AddAsync(torrent, downloadDir.FullName).Result;
-        manager.StartAsync();//.Wait();
-        //manager.TorrentStateChanged += StateChanged;
+        var manager = await _engine.AddAsync(torrent, downloadDir.FullName);
+        manager.TorrentStateChanged += StateChanged;
+        await manager.StartAsync();
 
-        //_isDownloaded.WaitOne();
+        async void StateChanged(object? sender, TorrentStateChangedEventArgs e)
+        {
+            if (e.NewState != TorrentState.Seeding) return;
+            manager.TorrentStateChanged -= StateChanged;
 
-        //manager.TorrentStateChanged -= StateChanged;
+            var downloadPath =  new DirectoryInfo(Path.Combine(downloadDir.FullName, torrent.Name));
+            await onDownloaded(downloadPath);
+            //OnDownload(DateTime.Now, downloadPath);
+        }
 
-        return new DirectoryInfo(Path.Combine(downloadDir.FullName, torrent.Name));
     }
 
-    /*private void StateChanged(object? sender, TorrentStateChangedEventArgs e)
-    {
-        if (e.NewState != TorrentState.Seeding) return;
-
-        _isDownloaded.Release();
-    }*/
 }

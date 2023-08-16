@@ -4,6 +4,8 @@ using MonoTorrent;
 using MonoTorrent.Client;
 using MovieToHLS.Services;
 using System.Net;
+using System.Web;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace MovieToHLS.Controllers;
 
@@ -13,20 +15,33 @@ public class MovieToHLSController : ControllerBase
 {
     private readonly ILogger<MovieToHLSController> _logger;
     private readonly TorrentService _service;
+    private readonly TelegramService _telegram;
 
-    public MovieToHLSController(ILogger<MovieToHLSController> logger, TorrentService service)
+    public MovieToHLSController(ILogger<MovieToHLSController> logger, TorrentService service, TelegramService telegram)
     {
         _logger = logger;
         _service = service;
+        //service.OnDownload += Service_OnDownload;
+        _telegram = telegram;
     }
 
+    /*  private void Service_OnDownload(DateTime arg1, DirectoryInfo arg2)
+      {
+          throw new NotImplementedException();
+      }*/
+
     [HttpPost("Upload")]
-    
-    public async Task Upload()
+
+    public async Task<string> Upload()
     {
+        /*_service.OnDownload += (a, b) => { };
+        Action<DateTime, DirectoryInfo> some = (a, b) => { };
+        _service.OnDownload += Service_OnDownload;
+        _service.OnDownload += some;
+        _service.OnDownload -= Service_OnDownload;
+        _service.OnDownload -= some;*/
         var response = HttpContext.Response;
         var request = HttpContext.Request;
-        response.ContentType = "text/html; charset=utf-8";
         IFormFileCollection files = request.Form.Files;
         //путь к папке, где будут храниться файлы
         DirectoryInfo uploadDir = new(Path.Combine(Directory.GetCurrentDirectory(), "uploads"));
@@ -43,51 +58,97 @@ public class MovieToHLSController : ControllerBase
                 await file.CopyToAsync(fileStream);
             }
         }
-        await response.WriteAsync("Файлы успешно загружены");
 
         var downloadedFiles = uploadDir.GetFiles()
-            .Select(x => (IsValid: Torrent.TryLoad(x.FullName, out var torrent), torrent, fileInfo: x))//item3 - FileInfo
+            .Select(x => new { IsValid = Torrent.TryLoad(x.FullName, out var torrent), Torrent = torrent, FileInfo = x })
             .Where(x => x.IsValid)
             .Select(x => x);
 
         var baseDir = new DirectoryInfo(AppContext.BaseDirectory);
         var outputDirectory = baseDir.CreateSubdirectory("Output");
 
-        if (downloadedFiles.Any())
+        if (!downloadedFiles.Any())
         {
-            /*var engine = new ClientEngine();
-            var loader = new TorrentService(engine);*/
-            var allowedExt = new[] { ".mp4", ".avi", ".mkv", ".mov" };
-            foreach (var (IsValid, torrent, fileInfo) in downloadedFiles)
+            HttpContext.Response.StatusCode = 500;
+            return "Не удалось скачать файл(ы)";
+        }
+        /*var engine = new ClientEngine();
+        var loader = new TorrentService(engine);*/
+        var allowedExt = new[] { ".mp4", ".avi", ".mkv", ".mov" };
+        foreach (var x in downloadedFiles)
+        {
+            _logger.LogInformation("Found torrent {Name}, downloading files...", x.Torrent.Name);
+            await _service.DownloadFile(x.Torrent, outputDirectory, async (folderWithFiles) =>
             {
-                _logger.LogInformation("Found torrent {Name}, downloading files...", torrent.Name) ;
-                var folderWithFiles = _service.DownloadFile(torrent, outputDirectory);
                 _logger.LogInformation("Download completed, converting to hls...");
-               
+
                 var oldTorrentsDir = Directory.CreateDirectory(Path.Combine(uploadDir.FullName, "OldTorrentFilesDownloaded"));
-                string whereFileWillBe = Path.Combine(oldTorrentsDir.FullName, fileInfo.Name);
-                FileInfo torrentFileToMove = new(Path.Combine(uploadDir.FullName, fileInfo.Name));
-                if(System.IO.File.Exists(torrentFileToMove.FullName)&&oldTorrentsDir.Exists)
+                string whereFileWillBe = Path.Combine(oldTorrentsDir.FullName, x.FileInfo.Name);
+                FileInfo torrentFileToMove = new(Path.Combine(uploadDir.FullName, x.FileInfo.Name));
+                if (System.IO.File.Exists(torrentFileToMove.FullName) && oldTorrentsDir.Exists)
                 {
-                    torrentFileToMove.MoveTo(whereFileWillBe);
+                    torrentFileToMove.MoveTo(whereFileWillBe, true);
                 }
 
                 var foldWIthFilesArray = folderWithFiles.EnumerateFiles("", SearchOption.AllDirectories)
                          .Where(x => allowedExt.Contains(x.Extension)).ToArray();
                 var composite = foldWIthFilesArray.Length > 1;
 
-                DirectoryInfo convertedDir = new(Path.Combine(outputDirectory.FullName, torrent.Name, torrent.Name + "Converted"));
+                DirectoryInfo convertedDir = new(Path.Combine(outputDirectory.FullName, x.Torrent.Name, x.Torrent.Name + "Converted"));
                 if (!convertedDir.Exists) convertedDir.Create();
                 foreach (var videoFile in foldWIthFilesArray)
                 {
-                    var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir);
+                    var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, x.Torrent.Name);
                     var m3u8File = convertedFiles.First(s => s.Extension == ".m3u8");
                     _logger.LogInformation("Converting complete, upload to cloud {Count} files...", convertedFiles.Length);
+                    //[Link text Here] (https://link-url-here.org)
+                    var message1 = "[Ваш фильм скачан: ]";
+                    var message2 = $"(http://localhost:5000/api/movieToHLS/download/{m3u8File.Name.Replace(".m3u8", "")}?password=123)".Replace(" ", "%20");
+                    /*var keyboard = new InlineKeyboardMarkup(
+                    InlineKeyboardButton.WithUrl(text: m3u8File.Name, url: message2));//HttpUtility.UrlEncode(message2)));*/
+                    //await _telegram.Notify(message1 + HttpUtility.UrlEncode(message2));
+                    await _telegram.Notify(message1 + message2); // keyboard);
+                    /*var keyboard = new InlineKeyboardMarkup(
+                    InlineKeyboardButton.WithUrl("Talk to me in private", "https://t.me/username"));
+                    await Bot.SendTextMessageAsync(message.Chat, "Smth", replyMarkup: keyboard);*/
+
                     //var uploadedFiles = cloudStorage.UploadDirectory(convertedDir.FullName, convertedFiles, torrent.Name, composite);
                     //var uploadedm3u8 = uploadedFiles.First(x => x.ObjectName.EndsWith(m3u8File.Name));
                     //Console.WriteLine($"https://players.akamai.com/players/hlsjs?streamUrl={WebUtility.UrlEncode(uploadedm3u8.PublicLink)}");
                 }
-            }
-        }        
+            });
+        }
+        return "Файлы добавлены на скачивание";
     }
+
+    [HttpGet]
+    [Route("download/{fileName}")]
+    //[Route("/download/{fileName}")]
+    public async Task<IResult> ReadFile([FromRoute] string fileName)//[FromQuery] string password
+    {
+        //if (password != "123") return Results.Unauthorized();
+
+        DirectoryInfo uploadDir = new(Path.Combine(AppContext.BaseDirectory, "Output"));
+        if (fileName.EndsWith(".ts"))
+        {
+            var tsFileToGive = uploadDir.GetFiles(fileName, SearchOption.AllDirectories);
+            return Results.File(tsFileToGive[0].FullName);
+        }
+
+        var m3u8FileToGive = uploadDir.GetFiles(fileName + ".m3u8", SearchOption.AllDirectories);
+
+        if (m3u8FileToGive.Length < 1) return Results.BadRequest();//что-то другое нужно бы вернуть
+        //await HttpContext.Response.SendFileAsync(m3u8FileToGive[0].FullName);
+
+        return Results.File(m3u8FileToGive[0].FullName);
+
+    }
+
+    [HttpGet]
+    [Route("test100500/{fileName}")]
+    public async Task<string> Test([FromQuery] string password, [FromRoute] string fileName)
+    {
+        return "fileName: " + fileName + ", password: " + password;
+    }
+
 }

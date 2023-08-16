@@ -1,5 +1,6 @@
 using MovieToHLS.Services;
 using MonoTorrent.Client;
+using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,12 +9,17 @@ var services = builder.Services;
 
 services.AddControllers();
 //services.AddSingleton<ITorrentService, TorrentService>();
-services.AddSingleton<TorrentService>();
+services.AddSingleton<TelegramBotClient>(new TelegramBotClient("6464331195:AAEn8HfRPz7kl25Rnab-ZBK_0JnKWu9Ma28"));
+services.AddTransient<TelegramService>();
+services.AddTransient<TorrentService>();
 services.AddSingleton<ClientEngine>();
+services.AddCors();
 services.AddEndpointsApiExplorer();
 services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

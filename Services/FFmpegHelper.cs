@@ -4,16 +4,16 @@ namespace MovieToHLS.Services;
 
 public class FFmpegHelper
 {
-    public static FileInfo[] RunMyProcess(FileInfo videoFile, DirectoryInfo convertedDir)
+    public static FileInfo[] RunMyProcess(FileInfo videoFile, DirectoryInfo convertedDir, string fileName)
     {
-        var toFile = FolderCreator(videoFile, convertedDir);
+        var toFile = FolderCreator(videoFile, convertedDir, fileName);
 
         using (Process p = new Process())
         {
             try
             {
                 var param =
-                    $"ffmpeg -i \"{videoFile.FullName}\"" +
+                    $"D:\\Programming\\Git\\GitProjects\\MovieToHLS\\ffmpeg_exe\\bin\\ffmpeg.exe -i \"{videoFile.FullName}\"" +
                     $" -vcodec: copy -acodec: copy" +
                     $" -map 0" +
                     $" -start_number 0" +
@@ -49,7 +49,7 @@ public class FFmpegHelper
         }
     }
 
-    public static FileInfo FolderCreator(FileInfo videoFile, DirectoryInfo convertedDir)
+    public static FileInfo FolderCreator(FileInfo videoFile, DirectoryInfo convertedDir, string fileName)
     {
         FileInfo toFile;
         var dirAr1 = videoFile.Directory.FullName.Replace(convertedDir.Parent.FullName, "");
@@ -61,12 +61,12 @@ public class FFmpegHelper
             var dirAr = dirAr1 == "" ? "" : dirAr1.Remove(0, 1);//убираем первый слеш
             DirectoryInfo di = new(Path.Combine(convertedDir.FullName, dirAr, videoFile.Name.Replace(videoFile.Extension, "")));
             if (!di.Exists) di.Create();
-            toFile = new(Path.Combine(di.FullName, "converted.m3u8"));
+            toFile = new(Path.Combine(di.FullName, fileName + ".m3u8"));
 
         }
         else
         {
-            toFile = new FileInfo(Path.Combine(convertedDir.FullName, "converted.m3u8"));
+            toFile = new FileInfo(Path.Combine(convertedDir.FullName, fileName + ".m3u8"));
         }
         //if (!toFile.Exists) toFile.Create();
         return toFile;

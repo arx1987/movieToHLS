@@ -68,3 +68,5 @@ D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\runtimes\win\lib\net6
 D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\Mono.Nat.dll
 D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\MonoTorrent.dll
 D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\ReusableTasks.dll
+D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\Newtonsoft.Json.dll
+D:\Programming\Git\GitProjects\MovieToHLS\bin\Debug\net7.0\Telegram.Bot.dll
