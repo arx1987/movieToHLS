@@ -11,8 +11,11 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using System.Numerics;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace MovieToHLS.Controllers;
+
 
 [Route("api/[controller]")]
 [ApiController]
@@ -22,6 +25,8 @@ public class MovieToHLSController : ControllerBase
     private readonly TorrentService _service;
     private readonly TelegramService _telegram;
     private readonly TelegramBotClient _tg;
+    private readonly Store _store;
+    private readonly IMemoryCache _memoryCache;
     private readonly TelegramOptions _tgOptions;
 
     public MovieToHLSController(
@@ -29,19 +34,21 @@ public class MovieToHLSController : ControllerBase
         TorrentService service,
         TelegramService telegram,
         TelegramBotClient tg,
+        Store store,
+        IMemoryCache memoryCache,
         IOptions<TelegramOptions> tgOptions)
     {
         _logger = logger;
         _service = service;
-        //service.OnDownload += Service_OnDownload;
         _telegram = telegram;
         _tg = tg;
+        _store = store;
+        _memoryCache = memoryCache;
         _tgOptions = tgOptions.Value;
     }
 
     [HttpGet("/tg/webhook")]
     public void WebhookGet() { }
-
 
     [HttpPost("/tg/webhook")]
     public async Task Webhook([FromBody] Update update)
@@ -95,15 +102,11 @@ public class MovieToHLSController : ControllerBase
                 {
                     var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, torrent.Name);
                     _logger.LogInformation("Converting complete, {Count} files...", convertedFiles.Length);
+
+                    using var fileStream = videoFile.OpenRead();
+                    await _fileStorage.UploadFile(fileStream, "....");
                     await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/download/{torrent.Name.Replace(" ", "%20")}");
-                    //var m3u8File = convertedFiles.First(s => s.Extension == ".m3u8");
-                    //[Link text Here] (https://link-url-here.org)
-                    /*var message1 = "[Ваш фильм скачан: ]";
-                    var message2 = $"(http://localhost:5000/api/movieToHLS/download/{m3u8File.Name.Replace(".m3u8", "")}?password=123)".Replace(" ", "%20");
-                    //*var keyboard = new InlineKeyboardMarkup(
-                    InlineKeyboardButton.WithUrl(text: m3u8File.Name, url: message2));//HttpUtility.UrlEncode(message2)));*//*
-                    //await _telegram.Notify(message1 + HttpUtility.UrlEncode(message2));
-                    await _telegram.Notify(message1 + message2); // keyboard);*/
+
                 }
             });
             return;
@@ -225,11 +228,19 @@ public class MovieToHLSController : ControllerBase
         return Results.File(m3u8FileToGive[0].FullName, fileDownloadName: fileName+".m3u8");
     }
 
-    [HttpGet]
-    [Route("test100500/{fileName}")]
-    public async Task<string> Test([FromQuery] string password, [FromRoute] string fileName)
+    [Authorize]
+    [HttpGet("/video/{token}")]
+    public async Task GetVideo(Guid token)
     {
-        return "fileName: " + fileName + ", password: " + password;
+        var userId = User.UserId();
+        var accessToken = await _memoryCache.GetOrCreateAsync($"access-token-{token}",
+            async x =>
+            {
+                x.SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+                return await _store.GetAccess(userId, token) ?? throw new ApplicationException($"you dont have access to this video"));
+            });
+
+        // accessToken.Torrent.Slug // /video/{slug}/{slug}.m3u8;
     }
 
 }

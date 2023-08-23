@@ -1,4 +1,7 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using MovieToHLS.Services;
 using MonoTorrent.Client;
 using MovieToHLS;
@@ -13,6 +16,7 @@ var config = builder.Configuration;
 services.AddControllers().AddNewtonsoftJson();
 //services.AddSingleton<ITorrentService, TorrentService>();
 services
+    .AddMemoryCache()
     .AddSingleton<TelegramBotClient>(new TelegramBotClient(config.GetSection("TelegramOptions:Token").Get<string>()))
     .AddTransient<TelegramService>()
     .AddTransient<TorrentService>()
@@ -22,16 +26,29 @@ services
     .AddHostedService<TgWebhookRegistrator>()
     .AddSwaggerGen();
 
+services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(x =>
+    {
+        x.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateActor = false,
+            ValidateAudience = false,
+            ValidateIssuer = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = JwtExt.SecretKey,
+        };
+    });
+
 
 services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName));
 
 var app = builder.Build();
 
 
-
 app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -39,47 +56,11 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-app.UseHttpsRedirection();
+app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-//app.MapGet("/", () => "Hello World!");
-
-/*app.Run(async (context) =>
-{
-    var response = context.Response;
-    var request = context.Request;
-    response.ContentType = "text/html; charset=utf-8";
-    if (request.Path == "/upload" && request.Method == "POST")
-    {
-        IFormFileCollection files = request.Form.Files;
-        //путь к папке, где будут храниться файлы
-        var uploadPath = $"{Directory.GetCurrentDirectory()}/uploads";
-        // создаем папку для хранения файлов
-        Directory.CreateDirectory(uploadPath);
-
-        foreach (var file in files)
-        {
-            // путь к папке uploads
-            string fullPath = $"{uploadPath}/{file.FileName}";
-
-            // сохраняем файл в папку uploads
-            using (var fileStream = new FileStream(fullPath, FileMode.Create))
-            {
-                await file.CopyToAsync(fileStream);
-            }
-        }
-        await response.WriteAsync("Файлы успешно загружены");
-
-        //string jobId = BackgroundJob.Enqueue(() => );
-        //BackgroundJob.CountinueJobWith(jobId, () => );
-    }
-    else
-    {
-        await response.SendFileAsync("html/index.html");
-    }
-});*/
 
 app.Run();
