@@ -26,6 +26,7 @@ public class MovieToHLSController : ControllerBase
     private readonly TelegramService _telegram;
     private readonly TelegramBotClient _tg;
     private readonly Store _store;
+    private readonly FileStorage _fileStorage;
     private readonly IMemoryCache _memoryCache;
     private readonly TelegramOptions _tgOptions;
 
@@ -35,6 +36,7 @@ public class MovieToHLSController : ControllerBase
         TelegramService telegram,
         TelegramBotClient tg,
         Store store,
+        FileStorage fileStorage,
         IMemoryCache memoryCache,
         IOptions<TelegramOptions> tgOptions)
     {
@@ -43,6 +45,7 @@ public class MovieToHLSController : ControllerBase
         _telegram = telegram;
         _tg = tg;
         _store = store;
+        _fileStorage = fileStorage;
         _memoryCache = memoryCache;
         _tgOptions = tgOptions.Value;
     }
@@ -104,7 +107,7 @@ public class MovieToHLSController : ControllerBase
                     _logger.LogInformation("Converting complete, {Count} files...", convertedFiles.Length);
 
                     using var fileStream = videoFile.OpenRead();
-                    await _fileStorage.UploadFile(fileStream, "....");
+                    await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
                     await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/download/{torrent.Name.Replace(" ", "%20")}");
 
                 }
@@ -237,7 +240,7 @@ public class MovieToHLSController : ControllerBase
             async x =>
             {
                 x.SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-                return await _store.GetAccess(userId, token) ?? throw new ApplicationException($"you dont have access to this video"));
+                return await _store.GetAccess(userId, token) ?? throw new ApplicationException($"you dont have access to this video");
             });
 
         // accessToken.Torrent.Slug // /video/{slug}/{slug}.m3u8;

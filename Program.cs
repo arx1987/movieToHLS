@@ -21,10 +21,12 @@ services
     .AddTransient<TelegramService>()
     .AddTransient<TorrentService>()
     .AddSingleton<ClientEngine>()
+    .AddHostedService<TgWebhookRegistrator>()
     .AddCors()
     .AddEndpointsApiExplorer()
-    .AddHostedService<TgWebhookRegistrator>()
     .AddSwaggerGen();
+
+services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName));
 
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(x =>
@@ -42,7 +44,6 @@ services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 
-services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName));
 
 var app = builder.Build();
 
