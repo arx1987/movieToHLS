@@ -14,13 +14,14 @@ var services = builder.Services;
 var config = builder.Configuration;
 
 services.AddControllers().AddNewtonsoftJson();
-//services.AddSingleton<ITorrentService, TorrentService>();
 services
     .AddMemoryCache()
     .AddSingleton<TelegramBotClient>(new TelegramBotClient(config.GetSection("TelegramOptions:Token").Get<string>()))
     .AddTransient<TelegramService>()
     .AddTransient<TorrentService>()
     .AddSingleton<ClientEngine>()
+    .AddTransient<Store>()
+    .AddTransient<FileStorage>()
     .AddHostedService<TgWebhookRegistrator>()
     .AddCors()
     .AddEndpointsApiExplorer()
@@ -49,6 +50,8 @@ var app = builder.Build();
 
 
 app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
+
+app.MapGet("/hello", async (HttpContext ctx) => $"{DateTime.Now}");
 
 if (app.Environment.IsDevelopment())
 {

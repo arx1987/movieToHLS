@@ -109,7 +109,6 @@ public class MovieToHLSController : ControllerBase
                     using var fileStream = videoFile.OpenRead();
                     await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
                     await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/download/{torrent.Name.Replace(" ", "%20")}");
-
                 }
             });
             return;
@@ -243,6 +242,9 @@ public class MovieToHLSController : ControllerBase
                 return await _store.GetAccess(userId, token) ?? throw new ApplicationException($"you dont have access to this video");
             });
 
+        using var stream = _fileStorage.GetMainFileBySlug(slug, 10);
+
+        return File()
         // accessToken.Torrent.Slug // /video/{slug}/{slug}.m3u8;
     }
 
