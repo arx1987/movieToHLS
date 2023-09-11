@@ -22,7 +22,7 @@ public class AuthController : ControllerBase
     [HttpPost("by-video-token/{token-id}")]
     public async Task Auth([FromRoute(Name = "token-id")] Guid tokenId)
     {
-        var access = await _store.GetAccess(tokenId) ?? throw new ApplicationException("no access");
+        var access = await _store.GetAccessOrNull(tokenId) ?? throw new ApplicationException("no access");
         var code = Random.Shared.Next(1000, 9999);
 
         _memoryCache.Set(AuthKey(tokenId), new TokenCode(tokenId, code, 0));
@@ -47,9 +47,9 @@ public class AuthController : ControllerBase
             throw new ApplicationException("invalid code");
         }
 
-        var access = await _store.GetAccess(tokenId) ?? throw new ApplicationException("no access");
+        var access = await _store.GetAccessOrNull(tokenId) ?? throw new ApplicationException("no access");
 
-        return access.User.Id.CreateToken();
+        return access.User.Id.CreateToken();//CreateToken() - it creates JWT Token
     }
 
     private string AuthKey(Guid tokenId) => $"auth-{tokenId.ToString()}";

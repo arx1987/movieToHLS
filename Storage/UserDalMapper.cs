@@ -10,6 +10,6 @@ public class UserDalMapper : IEntityTypeConfiguration<Entities.User>
         builder.ToTable("users");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnName("id");
-        builder.Property(x => x.ChatId).HasColumnName("chatId");
+        builder.Property(x => x.ChatId).HasColumnName("chat_id");
     }
 }

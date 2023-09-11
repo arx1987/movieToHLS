@@ -13,6 +13,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using System.Numerics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
+using MovieToHLS.Entities;
 
 namespace MovieToHLS.Controllers;
 
@@ -76,7 +77,24 @@ public class MovieToHLSController : ControllerBase
             await _tg.GetInfoAndDownloadFileAsync(fileId, stream);
 
             stream.Position = 0;
-            var torrent = await Torrent.LoadAsync(stream);
+            var torrent = await MonoTorrent.Torrent.LoadAsync(stream);
+            //создаем юзера, если его нет в базе иначе ничего не делаем
+            var user = await _store.SaveUser(chatId.ToString());
+            //Как только мы получили торрент, мы должны проверить есть ли он в базе, чтобы не делать лишнего
+            var bdTorrent = await _store.GetTorrentOrNull(torrent.InfoHash.ToArray() );
+            if (bdTorrent != null){
+                //проверить есть ли этот торрент у этого юзера, если у него нет
+                //добавить запись в торрентАксес 
+                var torrentAccessIdOrNull = await _store.GetTorrentAccessIdOrNull(user, bdTorrent);
+                if(torrentAccessIdOrNull == null) {
+                    torrentAccessIdOrNull = await _store.SaveTorrentAccess(user, bdTorrent);
+                }
+                var torrentAccessId = torrentAccessIdOrNull;
+                //и в любом случае отправить ссыль в телегу
+                await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/video/{torrentAccessId}"); //{torrent.Name.Replace(" ", "%20")}");
+                return;
+            }
+            //если торрента нет в базе, то качаем, конвертируем, сохраняем всю инфу о торренте и файлах
             var torrentName = stream.Name.Replace(uploadDir.FullName + "\\", "");
 
             var outputDirectory = baseDir.CreateSubdirectory("output");
@@ -99,16 +117,23 @@ public class MovieToHLSController : ControllerBase
                          .Where(x => allowedExt.Contains(x.Extension)).ToArray();
                 var composite = foldWIthFilesArray.Length > 1;
 
-                DirectoryInfo convertedDir = new(Path.Combine(outputDirectory.FullName, torrent.Name, torrent.Name + "Converted"));
-                if (!convertedDir.Exists) convertedDir.Create();
+                var videoGuid = Guid.NewGuid();
+                var videoDirectory = baseDir.CreateSubdirectory("video");
+                var folderVideoGuid = videoDirectory.CreateSubdirectory(videoGuid.ToString());
+                
+
+                DirectoryInfo convertedDir = new(Path.Combine(videoDirectory.FullName, folderVideoGuid.Name));//torrent.Name, torrent.Name + "Converted"));
+                //if (!convertedDir.Exists) convertedDir.Create();
                 foreach (var videoFile in foldWIthFilesArray)
                 {
-                    var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, torrent.Name);
+                    var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, fileName: folderVideoGuid.Name);// torrent.Name);//mb u should add videoGuidString instead of 3d prm
                     _logger.LogInformation("Converting complete, {Count} files...", convertedFiles.Length);
-
-                    using var fileStream = videoFile.OpenRead();
-                    await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
-                    await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/download/{torrent.Name.Replace(" ", "%20")}");
+                    var bdTorrent = await _store.SaveTorrent(videoGuid, torrentName, torrent.InfoHash.ToArray());
+                    var torrentAccessId = await _store.SaveTorrentAccess(user, bdTorrent);
+                    /*закидываем в GoogleStorage*/
+                    //using var fileStream = videoFile.OpenRead();
+                    //await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
+                    await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/video/{torrentAccessId}"); //{torrent.Name.Replace(" ", "%20")}");
                 }
             });
             return;
@@ -127,7 +152,7 @@ public class MovieToHLSController : ControllerBase
         _service.OnDownload += some;
         _service.OnDownload -= Service_OnDownload;
         _service.OnDownload -= some;*/
-        var response = HttpContext.Response;
+                    var response = HttpContext.Response;
         var request = HttpContext.Request;
         IFormFileCollection files = request.Form.Files;
         //путь к папке, где будут храниться файлы
@@ -147,7 +172,7 @@ public class MovieToHLSController : ControllerBase
         }
 
         var downloadedFiles = uploadDir.GetFiles()
-            .Select(x => new { IsValid = Torrent.TryLoad(x.FullName, out var torrent), Torrent = torrent, FileInfo = x })
+            .Select(x => new { IsValid = MonoTorrent.Torrent.TryLoad(x.FullName, out var torrent), Torrent = torrent, FileInfo = x })
             .Where(x => x.IsValid)
             .Select(x => x);
 
@@ -231,7 +256,7 @@ public class MovieToHLSController : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("/video/{token}")]
+    [HttpGet("/video/{token}")]//{token} - it's JWT token
     public async Task GetVideo(Guid token)
     {
         var userId = User.UserId();
@@ -239,12 +264,12 @@ public class MovieToHLSController : ControllerBase
             async x =>
             {
                 x.SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-                return await _store.GetAccess(userId, token) ?? throw new ApplicationException($"you dont have access to this video");
+                return await _store.GetAccessOrNull(userId, token) ?? throw new ApplicationException($"you dont have access to this video");
             });
 
-        using var stream = _fileStorage.GetMainFileBySlug(slug, 10);
+        //using var stream = _fileStorage.GetMainFileBySlug(slug, 10);
 
-        return File()
+        //return File()
         // accessToken.Torrent.Slug // /video/{slug}/{slug}.m3u8;
     }
 

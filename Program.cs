@@ -6,6 +6,9 @@ using MovieToHLS.Services;
 using MonoTorrent.Client;
 using MovieToHLS;
 using Telegram.Bot;
+using MovieToHLS.Storage;
+using System;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +17,9 @@ var services = builder.Services;
 var config = builder.Configuration;
 
 services.AddControllers().AddNewtonsoftJson();
+services.AddDbContext<AppDBContext>(x => x.UseNpgsql(builder.Configuration.GetConnectionString("postgres")));
 services
+    .AddTransient<AppDBContext>()
     .AddMemoryCache()
     .AddSingleton<TelegramBotClient>(new TelegramBotClient(config.GetSection("TelegramOptions:Token").Get<string>()))
     .AddTransient<TelegramService>()

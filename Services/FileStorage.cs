@@ -2,7 +2,7 @@
 
 public class FileStorage
 {
-    //  /video/{slug}/{slug}.m3u8 |  /video/{slug}/{slug}0.ts
+    //  /video/{guid}/{guid}.m3u8 |  /video/{guid}/{guid}0.ts
     public async Task UploadFile(Stream fileStream, string path)
     {
         using var output = File.Create(path);
