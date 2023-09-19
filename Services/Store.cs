@@ -8,7 +8,7 @@ namespace MovieToHLS.Services;
 
 public class Store
 {
-    private readonly AppDBContext _dbContext;
+    public readonly AppDBContext _dbContext;
 
     public Store(AppDBContext dbContext)
     {

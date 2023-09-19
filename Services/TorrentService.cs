@@ -34,6 +34,5 @@ public class TorrentService
             await onDownloaded(downloadPath);
             //OnDownload(DateTime.Now, downloadPath);
         }
-
     }
 }

@@ -27,10 +27,17 @@ services
     .AddSingleton<ClientEngine>()
     .AddTransient<Store>()
     .AddTransient<FileStorage>()
+    .AddSingleton<IVideoConverter>(sp =>
+    {
+        var services = sp.GetRequiredService<IEnumerable<IHostedService>>();
+        return services.OfType<BackgroundVideoConverter>().First();
+    })
     .AddHostedService<TgWebhookRegistrator>()
+    .AddHostedService<BackgroundVideoConverter>()
     .AddCors()
     .AddEndpointsApiExplorer()
     .AddSwaggerGen();
+
 
 services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.OptionName));
 
@@ -52,7 +59,6 @@ services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 
 var app = builder.Build();
-
 
 app.UseCors(x => x.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
 
