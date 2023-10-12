@@ -5,7 +5,7 @@ VisualStudioVersion = 17.6.33723.286
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MovieToHLS", "MovieToHLS.csproj", "{185E3EF0-11A4-42D9-99C1-8BA71E7760A5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Remove", "..\Remove\Remove.csproj", "{78A5E821-4DBC-4306-AA08-4677188B6B58}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Remove", "Remove\Remove.csproj", "{78A5E821-4DBC-4306-AA08-4677188B6B58}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
