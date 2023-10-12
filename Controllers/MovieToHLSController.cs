@@ -73,24 +73,28 @@ public class MovieToHLSController : ControllerBase
             var fileId = update.Message.Document.FileId;
             //путь к папке, где будут храниться торренты
             var baseDir = new DirectoryInfo(AppContext.BaseDirectory);
-            var uploadDir = baseDir.CreateSubdirectory("uploads");
-            //DirectoryInfo uploadDir = new(Path.Combine(Directory.GetCurrentDirectory(), "uploads"));
             // создаем папку для хранения файлов
-            Directory.CreateDirectory(uploadDir.FullName);
+            var uploadDir = baseDir.CreateSubdirectory("uploads");//.../bin/Debug/...
+
             await using var stream = System.IO.File.Create(Path.Combine(uploadDir.FullName, $"{Guid.NewGuid():n}.torrent"));
             await _tg.GetInfoAndDownloadFileAsync(fileId, stream);
 
             stream.Position = 0;
             var torrent = await MonoTorrent.Torrent.LoadAsync(stream);
+            //если торрента нет в базе, то качаем, конвертируем, сохраняем всю инфу о торренте и файлах
+            var torrentName = stream.Name.Replace(uploadDir.FullName + "\\", "");
+
             //создаем юзера, если его нет в базе иначе ничего не делаем
             var user = await _store.SaveUser(chatId.ToString());
             //Как только мы получили торрент, мы должны проверить есть ли он в базе, чтобы не делать лишнего
-            var bdTorrent = await _store.GetTorrentOrNull(torrent.InfoHash.ToArray() );
-            if (bdTorrent != null){
+            var bdTorrent = await _store.GetTorrentOrNull(torrent.InfoHash.ToArray());
+            if (bdTorrent != null)
+            {
                 //проверить есть ли этот торрент у этого юзера, если у него нет
                 //добавить запись в торрентАксес
                 var torrentAccessIdOrNull = await _store.GetTorrentAccessIdOrNull(user, bdTorrent);
-                if(torrentAccessIdOrNull == null) {
+                if (torrentAccessIdOrNull == null)
+                {
                     torrentAccessIdOrNull = await _store.SaveTorrentAccess(user, bdTorrent);
                 }
                 var torrentAccessId = torrentAccessIdOrNull;
@@ -98,14 +102,12 @@ public class MovieToHLSController : ControllerBase
                 await _tg.SendTextMessageAsync(chatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/video/{torrent}"); //{torrent.Name.Replace(" ", "%20")}");
                 return;
             }
-            //если торрента нет в базе, то качаем, конвертируем, сохраняем всю инфу о торренте и файлах
-            var torrentName = stream.Name.Replace(uploadDir.FullName + "\\", "");
 
             var outputDirectory = baseDir.CreateSubdirectory("output");
             await _tg.SendTextMessageAsync(chatId, "Окей, твой торрент качается, скоро пришлю ссылку");
             await _service.DownloadFile(torrent, outputDirectory, async folderWithFiles =>
             {
-                _videoConverter.PostCommand(new ConvertVideoCmd(folderWithFiles, chatId, user, torrent));
+                _videoConverter.PostCommand(new ConvertVideoCmd(folderWithFiles, chatId, user, torrent, torrentName, uploadDir));
             });
 
             return;
@@ -155,7 +157,6 @@ public class MovieToHLSController : ControllerBase
 
     [HttpGet]
     [Route("download/{fileName}")]
-    //[Route("/download/{fileName}")]
     public async Task<IResult> ReadFile([FromRoute] string fileName)//[FromQuery] string password
     {
         //if (password != "123") return Results.Unauthorized();
@@ -170,9 +171,9 @@ public class MovieToHLSController : ControllerBase
         var m3u8FileToGive = uploadDir.GetFiles(fileName + ".m3u8", SearchOption.AllDirectories);
 
         if (m3u8FileToGive.Length < 1) return Results.BadRequest();//что-то другое нужно бы вернуть
-        //await HttpContext.Response.SendFileAsync(m3u8FileToGive[0].FullName);
+                                                                   //await HttpContext.Response.SendFileAsync(m3u8FileToGive[0].FullName);
 
-        return Results.File(m3u8FileToGive[0].FullName, fileDownloadName: fileName+".m3u8");
+        return Results.File(m3u8FileToGive[0].FullName, fileDownloadName: fileName + ".m3u8");
     }
 
     [Authorize]

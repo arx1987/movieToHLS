@@ -3,20 +3,13 @@ using MonoTorrent.Client;
 
 namespace MovieToHLS.Services;
 
-/*public interface ITorrentService
-{
 
-}
-*/
 public class TorrentService
 {
-    //private SemaphoreSlim _isDownloaded;
     private readonly ClientEngine _engine;
-    //public event Action<DateTime, DirectoryInfo> OnDownload;
     public TorrentService(ClientEngine engine)
     {
         _engine = engine;
-        //_isDownloaded = new(0, 1);
     }
 
     public async Task DownloadFile(Torrent torrent, DirectoryInfo downloadDir, Func<DirectoryInfo, Task> onDownloaded)
@@ -32,7 +25,6 @@ public class TorrentService
 
             var downloadPath =  new DirectoryInfo(Path.Combine(downloadDir.FullName, torrent.Name));
             await onDownloaded(downloadPath);
-            //OnDownload(DateTime.Now, downloadPath);
         }
     }
 }

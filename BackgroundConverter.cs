@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.IO;
 using System.Threading.Channels;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Options;
@@ -9,7 +10,7 @@ using Torrent = MonoTorrent.Torrent;
 
 namespace MovieToHLS;
 
-public record ConvertVideoCmd(DirectoryInfo FolderWithFiles, long ChatId, User User, Torrent Torrent);
+public record ConvertVideoCmd(DirectoryInfo FolderWithFiles, long ChatId, User User, Torrent Torrent, string TorrentName, DirectoryInfo UploadDir);
 
 public interface IVideoConverter
 {
@@ -66,45 +67,47 @@ public class BackgroundVideoConverter : IHostedService, IVideoConverter
         return Task.CompletedTask;
     }
 
-    private async Task HandleCmd(ConvertVideoCmd arg)
-    {
-        await _tg.SendTextMessageAsync(arg.ChatId, "Вот ваше кино http://localhost:5000/api/MovieToHLS/download/filename");
-        _logger.LogInformation("Download completed, converting to hls...");
+  private async Task HandleCmd(ConvertVideoCmd arg)
+  {
+    await _tg.SendTextMessageAsync(arg.ChatId, "Вот ваше кино http://localhost:5000/api/MovieToHLS/download/filename");
+    _logger.LogInformation("Download completed, converting to hls...");
+    var baseDir = new DirectoryInfo(AppContext.BaseDirectory);
+    var uploadDir = arg.UploadDir;
+    var folderWithFiles = arg.FolderWithFiles;
 
-        // var oldTorrentsDir = Directory.CreateDirectory(Path.Combine(uploadDir.FullName, "OldTorrentFilesDownloaded"));
-        // string whereFileWillBe = Path.Combine(oldTorrentsDir.FullName, arg.Torrent.Name);//x.FileInfo.Name);
-        // FileInfo torrentFileToMove = new(Path.Combine(uploadDir.FullName, torrentName));//x.FileInfo.Name));
-        // if (System.IO.File.Exists(torrentFileToMove.FullName) && oldTorrentsDir.Exists)
-        // {
-        //     torrentFileToMove.MoveTo(whereFileWillBe, true);
-        // }
-        //
-        // var allowedExt = new[] { ".mp4", ".avi", ".mkv", ".mov" };
-        // var foldWIthFilesArray = folderWithFiles.EnumerateFiles("", SearchOption.AllDirectories)
-        //          .Where(x => allowedExt.Contains(x.Extension)).ToArray();
-        // var composite = foldWIthFilesArray.Length > 1;
-        //
-        // var videoGuid = Guid.NewGuid();
-        // var videoDirectory = baseDir.CreateSubdirectory("video");
-        // var folderVideoGuid = videoDirectory.CreateSubdirectory(videoGuid.ToString());
-        //
-        //
-        // DirectoryInfo convertedDir = new(Path.Combine(videoDirectory.FullName, folderVideoGuid.Name));//torrent.Name, torrent.Name + "Converted"));
-        // //if (!convertedDir.Exists) convertedDir.Create();
-        // foreach (var videoFile in foldWIthFilesArray)
-        // {
-        //     var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, fileName: folderVideoGuid.Name);// torrent.Name);//mb u should add videoGuidString instead of 3d prm
-        //     _logger.LogInformation("Converting complete, {Count} files...", convertedFiles.Length);
-        //     var bdTorrent = await _store.SaveTorrent(videoGuid, torrentName, torrent.InfoHash.ToArray());
-        //     var torrentAccessId = await _store.SaveTorrentAccess(user, bdTorrent);
-        //     /*закидываем в GoogleStorage*/
-        //     //using var fileStream = videoFile.OpenRead();
-        //     //await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
-        //     await _tg.SendTextMessageAsync(arg.ChatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/video/{torrentAccessId}"); //{torrent.Name.Replace(" ", "%20")}");
-        // }
+    var oldTorrentsDir = Directory.CreateDirectory(Path.Combine(uploadDir.FullName, "OldTorrentFilesDownloaded"));
+    string whereFileWillBe = Path.Combine(oldTorrentsDir.FullName, arg.TorrentName);
+    FileInfo torrentFileToMove = new(Path.Combine(uploadDir.FullName, arg.TorrentName));
+    if (System.IO.File.Exists(torrentFileToMove.FullName) && oldTorrentsDir.Exists)
+    {
+      torrentFileToMove.MoveTo(whereFileWillBe, true);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    var allowedExt = new[] { ".mp4", ".avi", ".mkv", ".mov" };
+    var foldWIthFilesArray = folderWithFiles.EnumerateFiles("", SearchOption.AllDirectories)
+             .Where(x => allowedExt.Contains(x.Extension)).ToArray();
+    var composite = foldWIthFilesArray.Length > 1;
+
+    var videoGuid = Guid.NewGuid();
+    var videoDirectory = baseDir.CreateSubdirectory("video");
+    var folderVideoGuid = videoDirectory.CreateSubdirectory(videoGuid.ToString());
+
+
+    DirectoryInfo convertedDir = new(Path.Combine(videoDirectory.FullName, folderVideoGuid.Name));
+    foreach (var videoFile in foldWIthFilesArray)
+    {
+      var convertedFiles = FFmpegHelper.RunMyProcess(videoFile, convertedDir, fileName: folderVideoGuid.Name);// torrent.Name);//mb u should add videoGuidString instead of third prm
+      _logger.LogInformation("Converting complete, {Count} files...", convertedFiles.Length);
+      var bdTorrent = await _store.SaveTorrent(videoGuid, arg.TorrentName, arg.Torrent.InfoHash.ToArray());
+      var torrentAccessId = await _store.SaveTorrentAccess(arg.User, bdTorrent);
+      /*закидываем в GoogleStorage*/
+      //using var fileStream = videoFile.OpenRead();
+      //await _fileStorage.UploadFile(fileStream, "....");//доделать здесь!!!
+      await _tg.SendTextMessageAsync(arg.ChatId, $"Вот ваше кино \n{_tgOptions.HostUrl}/api/MovieToHLS/video/{torrentAccessId}"); //{torrent.Name.Replace(" ", "%20")}");
+    }
+  }
+
+  public Task StopAsync(CancellationToken cancellationToken)
     {
         _scope.Dispose();
         return Task.CompletedTask;
